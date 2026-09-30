@@ -10,6 +10,9 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.GridLayout
 import android.widget.LinearLayout
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
+import android.widget.FrameLayout
 import android.widget.TextView
 
 class MainActivity : Activity() {
@@ -19,10 +22,16 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        savedInstanceState?.getStringArrayList("calculator")?.let { engine.restoreState(it) }
         window.statusBarColor = Color.rgb(11, 18, 32)
         window.navigationBarColor = Color.rgb(11, 18, 32)
         setContentView(buildInterface())
         refresh()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putStringArrayList("calculator", ArrayList(engine.saveState()))
+        super.onSaveInstanceState(outState)
     }
 
     private fun buildInterface(): View {
@@ -33,6 +42,16 @@ class MainActivity : Activity() {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
                 Color.rgb(11, 18, 32), Color.rgb(20, 31, 49)
             ))
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(11, 18, 32))
+            addView(root, FrameLayout.LayoutParams(-1, -2))
+            setOnApplyWindowInsetsListener { view, insets ->
+                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                insets.consumeSystemWindowInsets()
+            }
         }
 
         val brand = TextView(this).apply {
@@ -46,6 +65,7 @@ class MainActivity : Activity() {
         root.addView(brand, LinearLayout.LayoutParams(-1, dp(44)))
 
         val displayPanel = LinearLayout(this).apply {
+            minimumHeight = dp(180)
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.BOTTOM or Gravity.END
             setPadding(dp(20), dp(20), dp(20), dp(22))
@@ -64,9 +84,16 @@ class MainActivity : Activity() {
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             maxLines = 1
             isSingleLine = true
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        displayPanel.addView(expressionView, LinearLayout.LayoutParams(-1, dp(36)))
-        displayPanel.addView(resultView, LinearLayout.LayoutParams(-1, dp(72)))
+        displayPanel.addView(HorizontalScrollView(this).apply {
+            isFillViewport = true
+            addView(expressionView, FrameLayout.LayoutParams(-2, -1))
+        }, LinearLayout.LayoutParams(-1, dp(44)))
+        displayPanel.addView(HorizontalScrollView(this).apply {
+            isFillViewport = true
+            addView(resultView, FrameLayout.LayoutParams(-2, -1))
+        }, LinearLayout.LayoutParams(-1, dp(80)))
         root.addView(displayPanel, LinearLayout.LayoutParams(-1, 0, 1f).apply {
             bottomMargin = dp(20)
         })
@@ -103,7 +130,7 @@ class MainActivity : Activity() {
             if (col == 4) { row++; col = 0 }
         }
         root.addView(grid, LinearLayout.LayoutParams(-1, dp(410)))
-        return root
+        return scroll
     }
 
     private fun makeButton(key: Key): TextView = TextView(this).apply {

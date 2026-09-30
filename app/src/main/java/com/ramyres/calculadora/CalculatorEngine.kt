@@ -1,7 +1,6 @@
 package com.ramyres.calculadora
 
 import java.math.BigDecimal
-import java.math.MathContext
 import java.math.RoundingMode
 
 class CalculatorEngine {
@@ -14,9 +13,10 @@ class CalculatorEngine {
     var expression: String = "Pronto para calcular"
         private set
 
-    val display: String get() = format(parseInput())
+    val display: String get() = if (input == "Erro") input else formatInput()
 
     fun digit(value: String) {
+        require(value == "." || value.matches(Regex("[0-9]")))
         if (waitingForOperand || justSolved || input == "Erro") {
             input = "0"
             waitingForOperand = false
@@ -25,12 +25,18 @@ class CalculatorEngine {
         if (value == ".") {
             if (!input.contains(".")) input += "."
         } else {
-            input = if (input == "0") value else input + value
+            if (input.count { it.isDigit() } >= 15) return
+            input = when (input) {
+                "0" -> value
+                "-0" -> "-$value"
+                else -> input + value
+            }
         }
-        expression = if (pendingOperation == null) "Digitando" else expression.substringBeforeLast(" ") + " " + formatInput()
+        updateExpression()
     }
 
     fun operation(symbol: String) {
+        require(symbol in listOf("+", "−", "×", "÷"))
         if (input == "Erro") clear()
         val current = parseInput()
         if (pendingOperation != null && !waitingForOperand) {
@@ -61,17 +67,27 @@ class CalculatorEngine {
     }
 
     fun percent() {
-        if (input == "Erro") return
-        val value = parseInput().divide(BigDecimal(100), MathContext.DECIMAL64)
-        expression = "${format(parseInput())}% ="
+        if (input == "Erro" || waitingForOperand) return
+        val original = parseInput()
+        var value = original.movePointLeft(2)
+        if (pendingOperation == "+" || pendingOperation == "−") {
+            value = (accumulator ?: BigDecimal.ZERO).multiply(value)
+        }
+        expression = if (pendingOperation == null) "${format(original)}% ="
+            else "${format(accumulator ?: BigDecimal.ZERO)} $pendingOperation ${format(original)}%"
         input = plain(value)
         justSolved = true
     }
 
     fun toggleSign() {
-        if (input == "Erro" || parseInput().compareTo(BigDecimal.ZERO) == 0) return
-        input = plain(parseInput().negate())
+        if (input == "Erro") return
+        if (waitingForOperand) {
+            input = "0"
+            waitingForOperand = false
+        }
+        input = if (input.startsWith("-")) input.removePrefix("-") else "-$input"
         justSolved = false
+        updateExpression()
     }
 
     fun clear() {
@@ -97,10 +113,35 @@ class CalculatorEngine {
         accumulator = null
         pendingOperation = null
         waitingForOperand = false
+        justSolved = true
     }
 
     private fun parseInput(): BigDecimal = input.toBigDecimalOrNull() ?: BigDecimal.ZERO
-    private fun formatInput(): String = if (input == "Erro") input else format(parseInput())
+    private fun formatInput(): String {
+        val parts = input.split(".", limit = 2)
+        val integer = parts[0].removePrefix("-").reversed().chunked(3).joinToString(".").reversed()
+        return (if (input.startsWith("-")) "−" else "") + integer +
+            (if (parts.size == 2) ",${parts[1]}" else "")
+    }
+
+    private fun updateExpression() {
+        expression = if (pendingOperation == null) formatInput()
+            else "${format(accumulator ?: BigDecimal.ZERO)} $pendingOperation ${formatInput()}"
+    }
+
+    fun saveState(): List<String> = listOf(input, accumulator?.toPlainString().orEmpty(),
+        pendingOperation.orEmpty(), waitingForOperand.toString(), justSolved.toString(), expression)
+
+    fun restoreState(state: List<String>) {
+        if (state.size != 6) return
+        input = state[0]
+        accumulator = state[1].toBigDecimalOrNull()
+        pendingOperation = state[2].ifEmpty { null }
+        waitingForOperand = state[3].toBoolean()
+        justSolved = state[4].toBoolean()
+        expression = state[5]
+    }
+
     private fun plain(value: BigDecimal): String = value.stripTrailingZeros().toPlainString()
 
     private fun format(value: BigDecimal): String {

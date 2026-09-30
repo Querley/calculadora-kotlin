@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import org.junit.Test
+import org.junit.Assert.assertEquals
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
@@ -15,7 +16,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], qualifiers = "w390dp-h800dp-mdpi")
+@Config(sdk = [28], qualifiers = "w390dp-h800dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScreenshotTest {
     @Test
@@ -26,6 +27,8 @@ class ScreenshotTest {
         listOf("4", "9", "0", "0", "+", "1", "5", "9", "1", "0", "=").forEach { label ->
             findText(root, label).performClick()
         }
+        assertEquals("20.810", findText(root, "20.810").text.toString())
+        assertEquals("4.900 + 15.910 =", findText(root, "4.900 + 15.910 =").text.toString())
 
         val width = 390
         val height = 800
@@ -38,8 +41,7 @@ class ScreenshotTest {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         root.draw(Canvas(bitmap))
         val workingDirectory = requireNotNull(System.getProperty("user.dir"))
-        val projectRoot = requireNotNull(File(workingDirectory).parentFile)
-        val output = projectRoot.resolve("docs/calculadora-executando.png")
+        val output = File(workingDirectory).resolve("build/reports/preview/calculadora-teste.png")
         output.parentFile?.mkdirs()
         FileOutputStream(output).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
